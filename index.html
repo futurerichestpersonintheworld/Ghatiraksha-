@@ -666,6 +666,36 @@ body { padding: 0; overflow: hidden; }
   var level = 1, unlocked = 1, lvPaused = false;
   var sel = null, buildType = 'teer', pending = null;
   var hintMsg = '', hintUntil = 0, banner = null, foeKey = '', spawnRt = 0;
+  // Progress is mirrored to localStorage and IndexedDB so Android WebView restarts
+  // do not silently reset the highest unlocked level.
+  function readSavedLevel() {
+    return new Promise(function (resolve) {
+      var localValue = 1;
+      try { localValue = Math.max(1, parseInt(localStorage.getItem('ghati-unlocked') || '1', 10) || 1); } catch (e) {}
+      if (!window.indexedDB) { resolve(localValue); return; }
+      var req;
+      try { req = indexedDB.open('ghati-progress', 1); } catch (e2) { resolve(localValue); return; }
+      req.onupgradeneeded = function () { try { req.result.createObjectStore('save'); } catch (e3) {} };
+      req.onsuccess = function () {
+        var db = req.result, tx;
+        try { tx = db.transaction('save', 'readonly'); var get = tx.objectStore('save').get('unlocked');
+          get.onsuccess = function () { var v = Math.max(localValue, parseInt(get.result || '1', 10) || 1); try { db.close(); } catch (e4) {} resolve(v); };
+          get.onerror = function () { try { db.close(); } catch (e5) {} resolve(localValue); };
+        } catch (e6) { try { db.close(); } catch (e7) {} resolve(localValue); }
+      };
+      req.onerror = function () { resolve(localValue); };
+    });
+  }
+  function saveUnlockedLevel(value) {
+    value = Math.min(TOTAL, Math.max(1, parseInt(value, 10) || 1));
+    try { localStorage.setItem('ghati-unlocked', String(value)); } catch (e) {}
+    if (!window.indexedDB) return;
+    try {
+      var req = indexedDB.open('ghati-progress', 1);
+      req.onupgradeneeded = function () { try { req.result.createObjectStore('save'); } catch (e2) {} };
+      req.onsuccess = function () { var db = req.result; try { var tx = db.transaction('save', 'readwrite'); tx.objectStore('save').put(String(value), 'unlocked'); tx.oncomplete = function () { try { db.close(); } catch (e3) {} }; tx.onerror = function () { try { db.close(); } catch (e4) {} }; } catch (e5) { try { db.close(); } catch (e6) {} } };
+    } catch (e7) {}
+  }
   try { unlocked = Math.min(TOTAL, Math.max(1, parseInt(localStorage.getItem('ghati-unlocked') || '1', 10) || 1)); } catch (e) { unlocked = 1; }
   level = unlocked;
 
@@ -874,7 +904,7 @@ body { padding: 0; overflow: hidden; }
     if (win) {
       if (level < TOTAL) {
         unlocked = Math.max(unlocked, level + 1);
-        try { localStorage.setItem('ghati-unlocked', String(unlocked)); } catch (e) { /* ignore */ }
+        saveUnlockedLevel(unlocked);
         var st = state.lives >= 12 ? 3 : state.lives >= 6 ? 2 : 1;
         t.textContent = 'Level ' + level + ' pass ' + '★★★'.slice(0, st) + '☆☆☆'.slice(0, 3 - st);
         x.textContent = 'Naya naksha taiyaar hai: ' + THEMES[level % 5].name + '.';
@@ -1388,7 +1418,7 @@ body { padding: 0; overflow: hidden; }
   }
 
   resize();
-  loadLevel(level);
+  readSavedLevel().then(function (saved) { unlocked = Math.min(TOTAL, Math.max(unlocked, saved)); level = unlocked; loadLevel(level); });
   requestAnimationFrame(frame);
 })();
 </script>
