@@ -1,80 +1,81 @@
 name: Build Ghatiraksha Android
 
-on:
-workflow_dispatch:
-push:
-branches: [main]
+"on":
+  workflow_dispatch:
+  push:
+    branches:
+      - main
 
 jobs:
-build:
-runs-on: ubuntu-latest
+  build:
+    runs-on: ubuntu-latest
 
-steps:
-  - name: Checkout
-    uses: actions/checkout@v4
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-  - name: Setup Node
-    uses: actions/setup-node@v4
-    with:
-      node-version: 22
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
 
-  - name: Setup Java
-    uses: actions/setup-java@v4
-    with:
-      distribution: temurin
-      java-version: 21
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
 
-  - name: Prepare Capacitor
-    run: |
-      mkdir -p www
-      cp index.html www/index.html
-      npm init -y
-      npm install @capacitor/core@7 @capacitor/android@7 @capacitor/cli@7
-      npx cap init Ghatiraksha com.ghatiraksha.game --web-dir www
-      npx cap add android
-      npx cap sync android
+      - name: Prepare Capacitor
+        run: |
+          mkdir -p www
+          cp index.html www/index.html
+          npm init -y
+          npm install @capacitor/core@7 @capacitor/android@7 @capacitor/cli@7
+          npx cap init Ghatiraksha com.ghatiraksha.game --web-dir www
+          npx cap add android
+          npx cap sync android
 
-  - name: Apply Ghatiraksha App Icon
-    run: |
-      pip install pillow
-      python - <<'PY'
-      from PIL import Image
-      import os
+      - name: Apply Ghatiraksha App Icon
+        run: |
+          pip install pillow
+          python - <<'PY'
+          from PIL import Image
+          import os
 
-      img = Image.open("icon.png").convert("RGBA")
-      size = min(img.size)
-      left = (img.width - size) // 2
-      top = (img.height - size) // 2
-      img = img.crop((left, top, left + size, top + size))
+          img = Image.open("icon.png").convert("RGBA")
+          size = min(img.size)
+          left = (img.width - size) // 2
+          top = (img.height - size) // 2
+          img = img.crop((left, top, left + size, top + size))
 
-      sizes = {
-          "mipmap-mdpi": 48,
-          "mipmap-hdpi": 72,
-          "mipmap-xhdpi": 96,
-          "mipmap-xxhdpi": 144,
-          "mipmap-xxxhdpi": 192
-      }
+          sizes = {
+              "mipmap-mdpi": 48,
+              "mipmap-hdpi": 72,
+              "mipmap-xhdpi": 96,
+              "mipmap-xxhdpi": 144,
+              "mipmap-xxxhdpi": 192
+          }
 
-      for folder, px in sizes.items():
-          path = f"android/app/src/main/res/{folder}"
-          os.makedirs(path, exist_ok=True)
-          resized = img.resize((px, px), Image.Resampling.LANCZOS)
-          resized.save(f"{path}/ic_launcher.png")
-          resized.save(f"{path}/ic_launcher_round.png")
+          for folder, px in sizes.items():
+              path = f"android/app/src/main/res/{folder}"
+              os.makedirs(path, exist_ok=True)
+              resized = img.resize((px, px), Image.Resampling.LANCZOS)
+              resized.save(f"{path}/ic_launcher.png")
+              resized.save(f"{path}/ic_launcher_round.png")
 
-      print("Ghatiraksha icon applied successfully")
-      PY
+          print("App icon applied")
+          PY
 
-  - name: Build APK and AAB
-    run: |
-      cd android
-      chmod +x gradlew
-      ./gradlew assembleDebug bundleRelease
+      - name: Build APK and AAB
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug bundleRelease
 
-  - name: Upload Android builds
-    uses: actions/upload-artifact@v4
-    with:
-      name: Ghatiraksha-Android
-      path: |
-        android/app/build/outputs/apk/debug/*.apk
-        android/app/build/outputs/bundle/release/*.aab
+      - name: Upload Android builds
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ghatiraksha-Android
+          path: |
+            android/app/build/outputs/apk/debug/*.apk
+            android/app/build/outputs/bundle/release/*.aab
